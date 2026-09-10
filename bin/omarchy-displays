@@ -1,22 +1,15 @@
 #!/usr/bin/env bash
-# omarchy-displays — macOS-style display arrangement for Omarchy
+# omarchy-displays — write ~/.config/hypr/monitors.lua from a monitor arrangement
 #
-# Omarchy has no graphical monitor arranger and stores its display config in Lua
-# (~/.config/hypr/monitors.lua). This ships a Quickshell GUI that matches the
-# active Omarchy theme: drag screens to arrange them, set resolution / scale /
-# rotation, Apply live, then Save — the arrangement is translated to monitors.lua.
-#
-# The preferred UI is the Omarchy bar plugin (see install.sh). This command is
-# the standalone window / CLI:
+# Bundled with the "Displays Arranger" Omarchy plugin. The bar panel calls
+# `--from-native`; the other modes are for standalone use.
 #
 # Usage:
-#   omarchy-displays               Open the standalone GUI window
-#   omarchy-displays --nwg         Use the nwg-displays GUI instead (fallback)
-#   omarchy-displays --print       Print the Lua for the CURRENT live layout (no GUI)
+#   omarchy-displays               Open the standalone Quickshell window
+#   omarchy-displays --print       Print the Lua for the CURRENT live layout
 #   omarchy-displays --from-native SRC
 #                                  Write monitors.lua from native "monitor=" lines.
 #                                  SRC is a file, "-" for stdin, or the text itself.
-#                                  (The bar plugin's "Save" calls this.)
 #   omarchy-displays --help        Show this help
 
 set -euo pipefail
@@ -40,18 +33,6 @@ notify() {
 
 need_hyprland() {
   [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || die "Not running under Hyprland."
-}
-
-ensure_nwg() {
-  command -v nwg-displays >/dev/null 2>&1 && return
-  info "nwg-displays is not installed."
-  if command -v omarchy-pkg-add >/dev/null 2>&1; then
-    info "Installing it: omarchy pkg add nwg-displays"
-    omarchy pkg add nwg-displays
-  else
-    die "Install it first:  sudo pacman -S nwg-displays"
-  fi
-  command -v nwg-displays >/dev/null 2>&1 || die "nwg-displays still not found after install."
 }
 
 # Read native Hyprland "monitor=" lines on stdin, emit hl.monitor({...}) on stdout.
@@ -168,42 +149,9 @@ from_native() {
 
 run_gui() {
   need_hyprland
-  if command -v quickshell >/dev/null 2>&1 && [ -f "$QML" ]; then
-    exec quickshell -p "$QML"
-  fi
-  warn "Quickshell or the QML UI is unavailable — falling back to nwg-displays."
-  run_nwg_gui
-}
-
-run_nwg_gui() {
-  need_hyprland
-  ensure_nwg
-
-  tmpdir="$(mktemp -d)"
-  trap 'rm -rf "$tmpdir"' EXIT
-
-  # Sandbox HOME/XDG so nwg-displays writes its monitors.conf where we can read it
-  # instead of into ~/.config/hypr. It still talks to Hyprland over IPC (runtime
-  # socket), so the live preview and Apply work normally.
-  local fakehome="$tmpdir/home"
-  mkdir -p "$fakehome/.config/hypr"
-  [ -d "$HOME/.config/nwg-displays" ] && cp -r "$HOME/.config/nwg-displays" "$fakehome/.config/" 2>/dev/null || true
-
-  info "Opening nwg-displays:"
-  info "  • drag the screens to arrange them; set resolution / scale / rotation"
-  info "  • click APPLY, then close the window"
-  HOME="$fakehome" XDG_CONFIG_HOME="$fakehome/.config" nwg-displays \
-    || die "nwg-displays exited with an error."
-
-  local mon_conf="$fakehome/.config/hypr/monitors.conf"
-  [ -s "$mon_conf" ] || die "No arrangement was saved (did you click Apply?). Nothing changed."
-
-  local generated
-  generated="$(translate < "$mon_conf")" || true
-  [ -n "$generated" ] || die "Could not translate nwg-displays output. Raw file: $mon_conf"
-
-  write_block "$generated"
-  notify "Display arrangement saved to monitors.lua"
+  command -v quickshell >/dev/null 2>&1 || die "quickshell is not installed."
+  [ -f "$QML" ] || die "Standalone UI not found: $QML"
+  exec quickshell -p "$QML"
 }
 
 main() {
@@ -211,7 +159,6 @@ main() {
     -h|--help)      awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; exit 0 ;;
     --print)        print_current; exit 0 ;;
     --from-native)  shift; from_native "${1:-}"; exit 0 ;;
-    --nwg)          run_nwg_gui; exit 0 ;;
     "")             run_gui; exit 0 ;;
     *)              die "Unknown option: $1  (try --help)" ;;
   esac

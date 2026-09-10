@@ -16,11 +16,12 @@ _No response_
 
 ### Maintainer notes
 
-Bar widget. "Apply" writes `~/.config/hypr/monitors.lua` (timestamped `.bak`
-first, rewrites only a delimited managed block, then `hyprctl reload`) — this
-happens only on an explicit button press and has a 12-second auto-revert.
-Runtime deps: `quickshell`, `jq` (both ship with Omarchy). Optional `nwg-displays`
-only for the bundled CLI's `--nwg` fallback. No elevated privileges.
+Bar widget. The only side effect is "Apply", which runs the bundled
+`bin/omarchy-displays --from-native`: it backs up `~/.config/hypr/monitors.lua`
+to `monitors.lua.bak.<ts>`, rewrites only a delimited managed block, then
+`hyprctl reload`. This runs only on an explicit button press and has a
+12-second auto-revert. Runtime deps: `quickshell`, `jq` (both ship with
+Omarchy). No package installs, no `sudo`/`pkexec`, no installer script.
 
 ### Submission checklist
 

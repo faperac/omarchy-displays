@@ -33,8 +33,8 @@ Pick a bar section (left / center / right) when prompted. Move it later with:
 omarchy bar move faperac.displays --section center --index 0
 ```
 
-**Requirements:** `quickshell` and `jq` (both ship with Omarchy).
-**Optional:** `nwg-displays` — only for the standalone CLI's `--nwg` fallback.
+**Requirements:** `quickshell` and `jq` (both ship with Omarchy). No other
+dependencies, no elevated privileges.
 
 ## Using it
 
@@ -80,23 +80,30 @@ hyprctl reload
 
 ## Standalone (no bar)
 
-The bundled CLI also works on its own:
+The bundled CLI also works on its own — run it from the installed plugin dir:
 
 ```bash
-omarchy-displays            # standalone Quickshell window, same UI
-omarchy-displays --print    # print the Lua for the current live layout
-omarchy-displays --nwg      # arrange with nwg-displays instead
-omarchy-displays --from-native SRC   # write monitors.lua from native monitor= lines
+D=~/.config/omarchy/plugins/faperac.displays/bin/omarchy-displays
+$D                       # standalone Quickshell window, same UI
+$D --print               # print the Lua for the current live layout
+$D --from-native SRC     # write monitors.lua from native monitor= lines
 ```
-
-Run `./install.sh [left|center|right]` from a clone to symlink the CLI into
-`~/.local/bin` and install the plugin locally for development.
 
 ## Uninstall
 
 ```bash
 omarchy plugin remove faperac.displays
 ```
+
+## Development
+
+```bash
+git clone https://github.com/faperac/omarchy-displays
+ln -sfn "$PWD/omarchy-displays" ~/.config/omarchy/plugins/faperac.displays
+omarchy restart shell
+```
+
+Files under `~/.config/omarchy/plugins/` hot-reload on save.
 
 ## Files
 
@@ -105,9 +112,9 @@ manifest.json         plugin manifest (kind: bar-widget)
 BarWidget.qml         the 󰍹 bar button + popup loader
 Panel.qml             the popup UI (qs.Ui / qs.Commons)
 logic.js              shared model core: parse / snap / adjacency / serialise
-bin/omarchy-displays  the monitors.lua writer + standalone GUI/CLI
+bin/omarchy-displays  the monitors.lua writer + standalone window
 qml/Displays.qml      standalone-window build of the UI (no qs.* deps)
-preview.png · install.sh · CHANGELOG.md · LICENSE
+preview.png · CHANGELOG.md · LICENSE
 ```
 
 ## License
