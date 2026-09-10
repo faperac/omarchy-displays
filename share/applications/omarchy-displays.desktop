@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Displays (Omarchy)
+GenericName=Display Arrangement
+Comment=Arrange monitors, resolution, scale and rotation — writes Omarchy's monitors.lua
+Exec=omarchy-displays
+Icon=preferences-desktop-display
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=display;monitor;screen;arrange;resolution;scale;hidpi;rotate;

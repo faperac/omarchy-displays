@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "faperac.displays",
+  "name": "Displays",
+  "version": "0.1.0",
+  "author": "faperac",
+  "license": "MIT",
+  "description": "Arrange monitors from the Omarchy bar, macOS-style: drag screens to lay them out, set resolution, refresh, scale and rotation, Apply live, then Save to ~/.config/hypr/monitors.lua.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Displays",
+    "description": "Drag-to-arrange monitor layout, resolution, scale and rotation",
+    "category": "Utilities",
+    "aliases": ["displays", "monitors", "screen-layout"],
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
