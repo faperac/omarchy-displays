@@ -80,28 +80,92 @@ function parseMonitors(jsonText) {
 
 function clone(ms) { return JSON.parse(JSON.stringify(ms)); }
 
-// Push `ms[idx]` off every monitor it overlaps, then shift the whole set so the
-// top-left enabled monitor sits at (0,0). Mutates `ms` in place.
-function resolveAndNormalize(ms, idx) {
+function _overlaps(m, s, o, os) {
+    return m.x < o.x + os.w && m.x + s.w > o.x && m.y < o.y + os.h && m.y + s.h > o.y;
+}
+
+// True when m shares an edge with o (with real overlap along that edge), i.e.
+// the cursor can cross between them. Positions from hyprctl aren't always round,
+// so allow a 1px seam.
+function _touches(m, s, o, os) {
+    var vGap = Math.min(m.y + s.h, o.y + os.h) - Math.max(m.y, o.y);
+    var hGap = Math.min(m.x + s.w, o.x + os.w) - Math.max(m.x, o.x);
+    var edgeV = Math.abs(m.x + s.w - o.x) <= 1 || Math.abs(o.x + os.w - m.x) <= 1;
+    var edgeH = Math.abs(m.y + s.h - o.y) <= 1 || Math.abs(o.y + os.h - m.y) <= 1;
+    return (edgeV && vGap > 0) || (edgeH && hGap > 0);
+}
+
+function _touchesAny(ms, idx) {
     var m = ms[idx], s = logicalSize(m);
-    for (var pass = 0; pass < 5; pass++) {
-        var moved = false;
-        for (var i = 0; i < ms.length; i++) {
-            if (i === idx || !ms[i].enabled) continue;
-            var o = ms[i], os = logicalSize(o);
-            if (m.x < o.x + os.w && m.x + s.w > o.x && m.y < o.y + os.h && m.y + s.h > o.y) {
-                var penL = m.x + s.w - o.x, penR = o.x + os.w - m.x;
-                var penT = m.y + s.h - o.y, penB = o.y + os.h - m.y;
-                var mn = Math.min(penL, penR, penT, penB);
-                if (mn === penL)      m.x -= penL;
-                else if (mn === penR) m.x += penR;
-                else if (mn === penT) m.y -= penT;
-                else                  m.y += penB;
-                moved = true;
-            }
-        }
-        if (!moved) break;
+    for (var i = 0; i < ms.length; i++) {
+        if (i === idx || !ms[i].enabled) continue;
+        if (_touches(m, s, ms[i], logicalSize(ms[i]))) return true;
     }
+    return false;
+}
+
+// Slide v (start of an A-range of length aLen) so it overlaps the B-range
+// [bStart, bStart+bLen] by at least a quarter of the smaller side.
+function _clampOverlap(v, aLen, bStart, bLen) {
+    var k = Math.min(aLen, bLen) * 0.25;
+    return Math.max(bStart - aLen + k, Math.min(v, bStart + bLen - k));
+}
+
+// Move ms[idx] the shortest distance that puts it flush against some other
+// enabled monitor. Mutates in place.
+function _pullFlush(ms, idx) {
+    var m = ms[idx], s = logicalSize(m);
+    var bestCost = 1e18, bx = m.x, by = m.y;
+    for (var i = 0; i < ms.length; i++) {
+        if (i === idx || !ms[i].enabled) continue;
+        var o = ms[i], os = logicalSize(o);
+        var cands = [
+            { x: o.x + os.w, y: _clampOverlap(m.y, s.h, o.y, os.h) },  // right of o
+            { x: o.x - s.w,  y: _clampOverlap(m.y, s.h, o.y, os.h) },  // left of o
+            { x: _clampOverlap(m.x, s.w, o.x, os.w), y: o.y + os.h },  // below o
+            { x: _clampOverlap(m.x, s.w, o.x, os.w), y: o.y - s.h }    // above o
+        ];
+        for (var c = 0; c < cands.length; c++) {
+            var cost = Math.abs(cands[c].x - m.x) + Math.abs(cands[c].y - m.y);
+            if (cost < bestCost) { bestCost = cost; bx = cands[c].x; by = cands[c].y; }
+        }
+    }
+    m.x = Math.round(bx); m.y = Math.round(by);
+}
+
+// Push ms[idx] off everything it overlaps, guarantee it still touches the rest
+// (no gap the cursor can't cross), then shift the whole set to (0,0).
+// Mutates ms in place.
+function resolveAndNormalize(ms, idx) {
+    var enabled = 0;
+    for (var e = 0; e < ms.length; e++) if (ms[e].enabled) enabled++;
+
+    for (var round = 0; round < 4; round++) {
+        var m = ms[idx], s = logicalSize(m);
+        for (var pass = 0; pass < 5; pass++) {
+            var moved = false;
+            for (var i = 0; i < ms.length; i++) {
+                if (i === idx || !ms[i].enabled) continue;
+                var o = ms[i], os = logicalSize(o);
+                if (_overlaps(m, s, o, os)) {
+                    var penL = m.x + s.w - o.x, penR = o.x + os.w - m.x;
+                    var penT = m.y + s.h - o.y, penB = o.y + os.h - m.y;
+                    var mn = Math.min(penL, penR, penT, penB);
+                    if (mn === penL)      m.x -= penL;
+                    else if (mn === penR) m.x += penR;
+                    else if (mn === penT) m.y -= penT;
+                    else                  m.y += penB;
+                    moved = true;
+                }
+            }
+            if (!moved) break;
+        }
+        // No gaps allowed: if this monitor floats free of every other, pull it
+        // back until it's flush, then re-check for overlap.
+        if (enabled < 2 || !ms[idx].enabled || _touchesAny(ms, idx)) break;
+        _pullFlush(ms, idx);
+    }
+
     var minx = 1e9, miny = 1e9;
     for (var a = 0; a < ms.length; a++) if (ms[a].enabled) {
         minx = Math.min(minx, ms[a].x); miny = Math.min(miny, ms[a].y);
