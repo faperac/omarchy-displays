@@ -194,6 +194,7 @@ ShellRoot {
                 modes: modes
             });
         }
+        app._seedPrimary(ms);
         app.monitors = ms;
         if (app.selected < 0 || app.selected >= ms.length) {
             app.selected = 0;
@@ -206,6 +207,28 @@ ShellRoot {
 
     // ----- model mutations ---------------------------------------------------
     function _clone(ms) { return JSON.parse(JSON.stringify(ms)); }
+
+    // Hyprland has no primary-monitor concept of its own, so the model carries
+    // the flag: exactly one enabled monitor is `primary`, and
+    // _resolveAndNormalize keeps that one at (0,0).
+    function _primaryIndex(ms) {
+        for (var i = 0; i < ms.length; i++) if (ms[i].primary && ms[i].enabled) return i;
+        return -1;
+    }
+
+    // Adopt the primary from a layout that carries no flag yet: whoever holds
+    // the origin, else the first enabled output.
+    function _seedPrimary(ms) {
+        var pick = -1;
+        for (var i = 0; i < ms.length; i++) {
+            if (!ms[i].enabled) continue;
+            if (ms[i].x === 0 && ms[i].y === 0) { pick = i; break; }
+            if (pick < 0) pick = i;
+        }
+        for (var j = 0; j < ms.length; j++) ms[j].primary = (j === pick);
+    }
+
+    function isPrimary(m) { return !!(m && m.primary && m.enabled); }
 
     function _touches(m, s, o, os) {
         var vGap = Math.min(m.y + s.h, o.y + os.h) - Math.max(m.y, o.y);
@@ -274,12 +297,20 @@ ShellRoot {
             app._pullFlush(ms, idx);
         }
 
-        var minx = 1e9, miny = 1e9;
-        for (var a = 0; a < ms.length; a++) if (ms[a].enabled) {
-            minx = Math.min(minx, ms[a].x); miny = Math.min(miny, ms[a].y);
+        // The primary owns the origin; everything else is placed relative to
+        // it, negative coordinates included (Hyprland takes those). Anchoring
+        // on the layout's top-left is what used to make setPrimary a no-op.
+        var ax, ay, p = app._primaryIndex(ms);
+        if (p >= 0) {
+            ax = ms[p].x; ay = ms[p].y;
+        } else {
+            ax = 1e9; ay = 1e9;
+            for (var a = 0; a < ms.length; a++) if (ms[a].enabled) {
+                ax = Math.min(ax, ms[a].x); ay = Math.min(ay, ms[a].y);
+            }
+            if (ax === 1e9) { ax = 0; ay = 0; }
         }
-        if (minx === 1e9) { minx = 0; miny = 0; }
-        for (var b = 0; b < ms.length; b++) { ms[b].x -= minx; ms[b].y -= miny; }
+        for (var b = 0; b < ms.length; b++) { ms[b].x -= ax; ms[b].y -= ay; }
     }
 
     function moveMonitor(idx, nx, ny) {
@@ -316,8 +347,8 @@ ShellRoot {
     }
     function setPrimary(idx) {
         var ms = app._clone(app.monitors);
-        var px = ms[idx].x, py = ms[idx].y;
-        for (var i = 0; i < ms.length; i++) { ms[i].x -= px; ms[i].y -= py; }
+        if (!ms[idx] || !ms[idx].enabled) return;
+        for (var i = 0; i < ms.length; i++) ms[i].primary = (i === idx);
         app._resolveAndNormalize(ms, idx);
         app.monitors = ms; app.dirty = true; app.rev++;
     }
@@ -330,6 +361,9 @@ ShellRoot {
                 maxr = Math.max(maxr, ms[i].x + app.logicalSize(ms[i]).w);
             ms[idx].x = maxr; ms[idx].y = 0;
         }
+        // The primary has to be an output that's on: disabling it hands the
+        // origin to whatever is left, and the first output back on takes it.
+        if (app._primaryIndex(ms) < 0) app._seedPrimary(ms);
         app._resolveAndNormalize(ms, idx);
         app.monitors = ms; app.dirty = true; app.rev++;
     }
@@ -639,7 +673,7 @@ ShellRoot {
                             required property int index
                             property var m: app.monitors[index]
                             property bool isSel: app.selected === index
-                            property bool isPrimary: m && m.x === 0 && m.y === 0
+                            property bool isPrimary: app.isPrimary(m)
                             property bool dragActive: false
                             z: isSel ? 5 : 1
                             radius: app.sty.radius
@@ -843,8 +877,8 @@ ShellRoot {
 
                         Btn {
                             Layout.fillWidth: true
-                            label: (app.sel && app.sel.x === 0 && app.sel.y === 0) ? "Primary display" : "Set as primary"
-                            enabled: app.sel !== null && app.sel.enabled && !(app.sel.x === 0 && app.sel.y === 0)
+                            label: app.isPrimary(app.sel) ? "Primary display" : "Set as primary"
+                            enabled: app.sel !== null && app.sel.enabled && !app.isPrimary(app.sel)
                             onClicked: app.setPrimary(app.selected)
                         }
 
