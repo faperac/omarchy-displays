@@ -8,7 +8,7 @@ Hardware
 
 ### Tags
 
-Hyprland, Bar, System
+hyprland, bar, system
 
 ### Suggest a missing tag
 
