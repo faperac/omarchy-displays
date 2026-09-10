@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Displays (Omarchy)
+Name=Displays Arranger
 GenericName=Display Arrangement
 Comment=Arrange monitors, resolution, scale and rotation — writes Omarchy's monitors.lua
 Exec=omarchy-displays

@@ -1,4 +1,4 @@
-# Displays — Omarchy bar plugin
+# Displays Arranger — Omarchy bar plugin
 
 Arrange your monitors from the Omarchy bar, macOS-style.
 
@@ -24,7 +24,7 @@ file and reloading. This plugin does that for you, safely.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/<owner>/omarchy-displays.git --enable
+omarchy plugin add https://github.com/faperac/omarchy-displays.git --enable
 ```
 
 Pick a bar section (left / center / right) when prompted. Move it later with:

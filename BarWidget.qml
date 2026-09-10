@@ -47,7 +47,7 @@ BarWidget {
         bar: root.bar
         text: "󰍹"                       // nf-md-monitor
         slotSize: Style.bar.statusSlot
-        tooltipText: "Displays — arrange monitors"
+        tooltipText: "Displays Arranger"
         onPressed: function (b) { if (b === Qt.LeftButton) root.togglePanel() }
     }
 }

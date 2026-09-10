@@ -1,10 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "faperac.displays",
-  "name": "Displays",
+  "name": "Displays Arranger",
   "version": "0.1.0",
-  "author": "Fabricio PA",
+  "author": "faperac",
   "license": "MIT",
+  "repository": "https://github.com/faperac/omarchy-displays",
   "description": "Arrange your monitors from the Omarchy bar, macOS-style: drag screens to lay them out (they stay edge-to-edge, no dead gaps), set resolution, refresh, scale and rotation, then Apply — it writes ~/.config/hypr/monitors.lua and reloads Hyprland, with a 12-second auto-revert if something goes wrong.",
   "kinds": [
     "bar-widget"
@@ -14,7 +15,7 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Displays",
+    "displayName": "Displays Arranger",
     "description": "Drag-to-arrange monitor layout, resolution, refresh, scale and rotation",
     "category": "Utilities",
     "aliases": ["displays", "monitors", "screen-layout", "arrangement"],

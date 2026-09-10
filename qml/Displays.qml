@@ -379,7 +379,7 @@ ShellRoot {
     FloatingWindow {
         id: win
         visible: true
-        title: "Displays — Omarchy"
+        title: "Displays Arranger"
         implicitWidth: 960
         implicitHeight: 640
         minimumSize: Qt.size(780, 520)
