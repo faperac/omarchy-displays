@@ -122,10 +122,11 @@ ShellRoot {
     // --------------------------------------------------------------- monitors
     // Working model: [{name,desc,enabled,x,y,scale,transform,res:{w,h},rr,modes:[{w,h,rr}]}]
     property var monitors: []
+    property var baselineMonitors: []
     property int selected: -1
     property int rev: 0
     property bool dirty: false
-    property string baselineBatch: ""
+    property string pendingNote: ""
 
     function trimNum(s) {
         s = String(s);
@@ -146,18 +147,18 @@ ShellRoot {
              + "," + m.x + "x" + m.y + "," + app.fmtScale(m.scale)
              + ",transform," + m.transform;
     }
-    function batch(ms) {
-        var parts = [];
-        for (var i = 0; i < ms.length; i++)
-            parts.push("keyword monitor " + app.nativeArgs(ms[i]));
-        return parts.join(" ; ");
+    function nativeLines(ms) {
+        var out = [];
+        for (var i = 0; i < ms.length; i++) out.push("monitor=" + app.nativeArgs(ms[i]));
+        return out.join("\n");
     }
 
     Process { id: readProc; command: ["hyprctl", "-j", "monitors", "all"]
         stdout: StdioCollector { onStreamFinished: app.ingest(text) } }
-    Process { id: applyProc }
-    Process { id: saveProc
-        onRunningChanged: if (!running) { app.dirty = false; app.refresh(); toast.show("Saved to monitors.lua"); } }
+    // Omarchy rejects `hyprctl keyword`; every write goes through the CLI, which
+    // rewrites the managed block in monitors.lua and runs `hyprctl reload`.
+    Process { id: runProc
+        onRunningChanged: if (!running) { app.dirty = false; toast.show(app.pendingNote); app.refresh(); } }
 
     function refresh() { readProc.running = true; }
     Component.onCompleted: app.refresh()
@@ -198,7 +199,7 @@ ShellRoot {
             app.selected = 0;
             for (var s = 0; s < ms.length; s++) if (ms[s].enabled) { app.selected = s; break; }
         }
-        app.baselineBatch = app.batch(ms);
+        if (!confirmBar.active) app.baselineMonitors = JSON.parse(JSON.stringify(ms));
         app.dirty = false;
         app.rev++;
     }
@@ -286,31 +287,26 @@ ShellRoot {
         app.monitors = ms; app.dirty = true; app.rev++;
     }
 
-    // ----- apply / save / revert ------------------------------------------
+    // ----- apply / revert ----------------------------------------------------
+    function runArrangement(ms, note) {
+        app.pendingNote = note;
+        runProc.command = ["omarchy-displays", "--from-native", app.nativeLines(ms)];
+        runProc.running = true;
+    }
     function applyLive() {
-        applyProc.command = ["hyprctl", "--batch", app.batch(app.monitors)];
-        applyProc.running = true;
+        app.runArrangement(app.monitors, "Applied");
         confirmBar.arm();
     }
     function revertLive() {
-        applyProc.command = ["hyprctl", "--batch", app.baselineBatch];
-        applyProc.running = true;
         confirmBar.disarm();
-        app.refresh();
-        toast.show("Reverted");
+        app.runArrangement(app.baselineMonitors, "Reverted");
     }
     function keepChanges() {
         confirmBar.disarm();
-        app.baselineBatch = app.batch(app.monitors);
+        app.baselineMonitors = JSON.parse(JSON.stringify(app.monitors));
         toast.show("Kept");
     }
-    function save() {
-        var lines = [];
-        for (var i = 0; i < app.monitors.length; i++)
-            lines.push("monitor=" + app.nativeArgs(app.monitors[i]));
-        saveProc.command = ["omarchy-displays", "--from-native", lines.join("\n")];
-        saveProc.running = true;
-    }
+    function save() { app.applyLive(); }
 
     property var sel: (selected >= 0 && selected < monitors.length) ? monitors[selected] : null
     function uniqRes(m) {
@@ -907,8 +903,7 @@ ShellRoot {
                     }
                     Item { Layout.fillWidth: true }
                     Btn { label: "Revert"; enabled: app.dirty || confirmBar.active; onClicked: app.revertLive() }
-                    Btn { label: "Apply"; enabled: app.dirty; onClicked: app.applyLive() }
-                    Btn { label: "Save"; primary: true; onClicked: app.save() }
+                    Btn { label: "Apply"; primary: true; enabled: app.dirty && !confirmBar.active; onClicked: app.applyLive() }
                 }
             }
         }
