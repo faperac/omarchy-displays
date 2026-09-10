@@ -1,128 +1,115 @@
-# omarchy-displays
+# Displays — Omarchy bar plugin
 
-A macOS-**Displays**-style monitor arranger for [Omarchy](https://omarchy.org/),
-as a **bar plugin**: a `󰍹` button in the Omarchy header opens a popup where you
-drag screens to lay them out, set resolution / refresh / scale / rotation, Apply
-it live, then Save it to `~/.config/hypr/monitors.lua`.
+Arrange your monitors from the Omarchy bar, macOS-style.
 
-It uses Omarchy's own Quickshell UI kit (`qs.Ui` / `qs.Commons`) — square
-corners, 1px borders, the mono font, `Dropdown` / `Toggle` / `Button` — so it
-looks like the rest of the desktop and follows every `omarchy theme` change.
+![Displays panel](preview.png)
 
-## Why it exists
+A `󰍹` button in the bar opens a popup where you **drag screens to lay them
+out** (they stay edge-to-edge — no dead gaps your cursor can't cross), set
+**resolution, refresh rate, scale and rotation**, pick the primary display, and
+enable/disable outputs. **Apply** writes the arrangement to
+`~/.config/hypr/monitors.lua` and reloads Hyprland, with a **12-second
+auto-revert** if something goes wrong.
 
-Omarchy has no graphical display arranger — you hand-edit `monitors.lua`:
+Built with Omarchy's own Quickshell UI kit (`qs.Ui` / `qs.Commons`), so it
+matches the active theme and restyles when you switch themes.
 
-```lua
-hl.monitor({ output = "eDP-1",    mode = "1920x1080@60", position = "0x0",    scale = 1 })
-hl.monitor({ output = "HDMI-A-1", mode = "2560x1440@60", position = "1920x0", scale = 1 })
-```
+## Why
 
-This gives it a UI: a drag-and-snap canvas (screens snap edge-to-edge and never
-overlap), a per-display inspector, a live **Apply** with a 12-second "keep
-changes?" safety revert, and **Save** which writes a delimited managed block
-into `monitors.lua` (timestamped `.bak` first) then `hyprctl reload`.
+Omarchy has no graphical display arranger — you hand-edit `monitors.lua`.
+Hyprland also can't apply monitor changes over IPC on Omarchy (`hyprctl
+keyword` is rejected by the Lua parser), so every display tweak means editing a
+file and reloading. This plugin does that for you, safely.
 
 ## Install
 
 ```bash
-git clone <your-fork-url> omarchy-displays
-cd omarchy-displays
-./install.sh right          # bar section: left | center | right   (default: right)
+omarchy plugin add https://github.com/<owner>/omarchy-displays.git --enable
 ```
 
-`install.sh`:
-
-- copies the plugin to `~/.config/omarchy/plugins/faperac.displays/` and bakes
-  the chosen section into its `defaultSection`
-- runs `omarchy plugin enable faperac.displays <section>`, `omarchy bar move …`,
-  and `omarchy restart shell`
-- also installs the standalone `omarchy-displays` CLI into `~/.local/bin`
-
-Move it afterwards with:
+Pick a bar section (left / center / right) when prompted. Move it later with:
 
 ```bash
 omarchy bar move faperac.displays --section center --index 0
 ```
 
-Requires `quickshell` and `jq` (both ship with Omarchy).
+**Requirements:** `quickshell` and `jq` (both ship with Omarchy).
+**Optional:** `nwg-displays` — only for the standalone CLI's `--nwg` fallback.
 
 ## Using it
 
-Click the `󰍹` bar button. In the popup:
+Click the `󰍹` bar button.
 
 | Action | How |
 |---|---|
 | Select a display | click its card |
-| Move it | drag the card — it snaps to the other screens |
-| Resolution / refresh / scale / orientation | inspector dropdowns |
-| Enable / disable an output | the **Enabled** toggle |
+| Move it | drag the card — it snaps to the others, always edge-to-edge |
+| Resolution / refresh / scale / orientation | the four dropdowns |
+| Enable / disable an output | **Disable output** / **Enable output** |
 | Choose the primary (0,0) display | **Set as primary** |
-| Test without saving | **Apply** — then **Keep changes** or let it auto-revert |
-| Persist to `monitors.lua` | **Save** |
-| Undo edits | **Revert** |
+| Flash each screen's name | **Identify** |
+| Apply the layout | **Apply** — then **Keep** within 12s, or it auto-reverts |
+| Undo pending edits | **Revert** |
 
-IPC (bind a key if you like):
+Bind a key if you like (Hyprland `bindings.lua`):
 
-```bash
+```
 omarchy-shell faperac.displays toggle
 ```
 
-## Standalone window / CLI
+## What it writes
 
-No bar, or scripting:
+**Apply** runs the bundled `bin/omarchy-displays --from-native`, which:
+
+1. backs up `~/.config/hypr/monitors.lua` to `monitors.lua.bak.<timestamp>`
+2. rewrites the block between
+   `-- >>> omarchy-displays managed block` markers with `hl.monitor({ … })`
+   calls — everything outside the block is left untouched
+3. runs `hyprctl reload` and checks `hyprctl configerrors`
+
+`transform` (rotation) and `mirror` are written; `vrr` / `bitdepth` are not.
+If the stock catch-all `hl.monitor({ output = "", … })` is still active in your
+`monitors.lua`, the managed block is appended after it and wins.
+
+Undo a bad Apply by hand:
 
 ```bash
-omarchy-displays            # standalone Quickshell window (same UI)
+cp ~/.config/hypr/monitors.lua.bak.<timestamp> ~/.config/hypr/monitors.lua
+hyprctl reload
+```
+
+## Standalone (no bar)
+
+The bundled CLI also works on its own:
+
+```bash
+omarchy-displays            # standalone Quickshell window, same UI
 omarchy-displays --print    # print the Lua for the current live layout
-omarchy-displays --nwg      # fall back to the nwg-displays GUI
+omarchy-displays --nwg      # arrange with nwg-displays instead
 omarchy-displays --from-native SRC   # write monitors.lua from native monitor= lines
 ```
 
-After Save, `monitors.lua` gets:
+Run `./install.sh [left|center|right]` from a clone to symlink the CLI into
+`~/.local/bin` and install the plugin locally for development.
 
-```lua
--- >>> omarchy-displays managed block (generated) >>>
-hl.monitor({ output = "eDP-1", mode = "1920x1080@60", position = "1920x0", scale = 1 })
-hl.monitor({ output = "HDMI-A-1", mode = "2560x1440@59.951", position = "0x0", scale = 1 })
--- <<< omarchy-displays managed block <<<
+## Uninstall
+
+```bash
+omarchy plugin remove faperac.displays
 ```
 
-Anything outside that block is preserved. Undo a Save:
-`cp ~/.config/hypr/monitors.lua.bak.<timestamp> ~/.config/hypr/monitors.lua && hyprctl reload`.
-
-### Notes / limitations
-
-- The stock `monitors.lua` catch-all `hl.monitor({ output = "", … })` is left in
-  place; the managed block is appended after it and wins. If an arrangement
-  looks ignored, comment that line out (the CLI warns when it sees an active
-  one).
-- `transform` (rotation) and `mirror` are carried through. `vrr` / `bitdepth`
-  are not written in this version.
-
-## Layout
+## Files
 
 ```
-manifest.json            Omarchy plugin manifest (kind: bar-widget)
-BarWidget.qml            the 󰍹 bar button + popup loader
-Panel.qml                the popup UI (qs.Ui / qs.Commons)
-logic.js                 shared pure model helpers (parse / snap / serialise)
-bin/omarchy-displays     CLI: monitors.lua writer, --print, --nwg, standalone GUI
-qml/Displays.qml         standalone-window mirror of the UI (no qs.* deps)
-install.sh · share/…
+manifest.json         plugin manifest (kind: bar-widget)
+BarWidget.qml         the 󰍹 bar button + popup loader
+Panel.qml             the popup UI (qs.Ui / qs.Commons)
+logic.js              shared model core: parse / snap / adjacency / serialise
+bin/omarchy-displays  the monitors.lua writer + standalone GUI/CLI
+qml/Displays.qml      standalone-window build of the UI (no qs.* deps)
+preview.png · install.sh · CHANGELOG.md · LICENSE
 ```
-
-## Proposing this to Omarchy
-
-- The plugin is already in first-party shape (`manifest.json` +
-  `BarWidget.qml` + `Panel.qml`, `omarchy plugin validate` clean). It could ship
-  under `shell/plugins/omarchy.displays/`.
-- `bin/omarchy-displays` would become `omarchy monitor arrange` /
-  `omarchy-monitor-arrange`; its `--from-native` (native `monitor=` → Lua
-  `hl.monitor{}`) is the bit that makes any Hyprland display tool usable on
-  Omarchy's Lua config.
-- `nwg-displays` stays an optional `--nwg` fallback (lazy `omarchy pkg add`).
 
 ## License
 
-MIT — see `LICENSE`.
+MIT — see [LICENSE](LICENSE).

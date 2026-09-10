@@ -3,21 +3,28 @@
   "id": "faperac.displays",
   "name": "Displays",
   "version": "0.1.0",
-  "author": "faperac",
+  "author": "Fabricio PA",
   "license": "MIT",
-  "description": "Arrange monitors from the Omarchy bar, macOS-style: drag screens to lay them out, set resolution, refresh, scale and rotation, Apply live, then Save to ~/.config/hypr/monitors.lua.",
+  "description": "Arrange your monitors from the Omarchy bar, macOS-style: drag screens to lay them out (they stay edge-to-edge, no dead gaps), set resolution, refresh, scale and rotation, then Apply — it writes ~/.config/hypr/monitors.lua and reloads Hyprland, with a 12-second auto-revert if something goes wrong.",
   "kinds": [
     "bar-widget"
   ],
+  "activation": "on-demand",
   "entryPoints": {
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
     "displayName": "Displays",
-    "description": "Drag-to-arrange monitor layout, resolution, scale and rotation",
+    "description": "Drag-to-arrange monitor layout, resolution, refresh, scale and rotation",
     "category": "Utilities",
-    "aliases": ["displays", "monitors", "screen-layout"],
+    "aliases": ["displays", "monitors", "screen-layout", "arrangement"],
     "allowMultiple": false,
     "defaultSection": "right"
+  },
+  "omarchy": {
+    "clonePaths": [
+      { "source": "Panel.qml", "target": "Panel.qml" },
+      { "source": "logic.js", "target": "logic.js" }
+    ]
   }
 }

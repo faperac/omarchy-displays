@@ -1,0 +1,4 @@
+*.bak
+*.bak.*
+monitors.lua.bak.*
+.DS_Store

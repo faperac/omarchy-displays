@@ -25,6 +25,11 @@ Panel {
     readonly property color fg: Color.popups.text
     readonly property color muted: Util.alpha(fg, 0.55)
 
+    // The CLI is bundled in the plugin (installed by `omarchy plugin add`), so
+    // the plugin never depends on anything being on PATH.
+    readonly property string cli: Quickshell.env("HOME")
+        + "/.config/omarchy/plugins/faperac.displays/bin/omarchy-displays"
+
     // ---- model ------------------------------------------------------------
     property var model: []
     property var baselineModel: []
@@ -64,7 +69,7 @@ Panel {
     // managed block and runs `hyprctl reload`.
     function runArrangement(ms, note) {
         root.pendingNote = note;
-        runProc.command = ["omarchy-displays", "--from-native", L.nativeLines(ms)];
+        runProc.command = [root.cli, "--from-native", L.nativeLines(ms)];
         runProc.running = true;
     }
     function applyLive() {
