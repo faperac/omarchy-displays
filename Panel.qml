@@ -39,6 +39,21 @@ Panel {
     property string pendingNote: ""
     readonly property var sel: (selIdx >= 0 && selIdx < model.length) ? model[selIdx] : null
 
+    // ---- identify -----------------------------------------------------------
+    // Flash only the card for the monitor the real pointer is currently on,
+    // not every card — with two cards flashing at once there's nothing to read.
+    property int identifyIdx: -1
+    function identify() { identifyProc.running = true; }
+    function monitorAt(px, py) {
+        for (var i = 0; i < root.model.length; i++) {
+            var m = root.model[i];
+            if (!m.enabled) continue;
+            var s = L.logicalSize(m);
+            if (px >= m.x && px < m.x + s.w && py >= m.y && py < m.y + s.h) return i;
+        }
+        return -1;
+    }
+
     function open() { controller.show(); refresh(); }
     function close() { controller.hide(); }
     function toggle() { opened ? close() : open(); }
@@ -90,6 +105,16 @@ Panel {
         stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.ingest(text) } }
     Process { id: runProc
         onExited: { root.dirty = false; flash.show(root.pendingNote); root.refresh(); } }
+    Process { id: identifyProc; command: ["hyprctl", "-j", "cursorpos"]
+        stdout: StdioCollector {
+            waitForEnd: true
+            onStreamFinished: {
+                var idx = -1;
+                try { var p = JSON.parse(text); idx = root.monitorAt(p.x, p.y); } catch (e) {}
+                root.identifyIdx = idx;
+                identifyTimer.restart();
+            }
+        } }
 
     IpcHandler {
         target: root.ipcTarget
@@ -155,7 +180,7 @@ Panel {
                         fontSize: Style.font.caption
                         horizontalPadding: Style.space(8)
                         verticalPadding: Style.space(3)
-                        onClicked: identifyTimer.start()
+                        onClicked: root.identify()
                     }
                 }
 
@@ -285,7 +310,9 @@ Panel {
                             Connections {
                                 target: identifyTimer
                                 function onRunningChanged() {
-                                    if (identifyTimer.running) { cardFlash.opacity = 0.5; cardFlashOut.start(); }
+                                    if (identifyTimer.running && card.index === root.identifyIdx) {
+                                        cardFlash.opacity = 0.5; cardFlashOut.start();
+                                    }
                                 }
                             }
                             NumberAnimation { id: cardFlashOut; target: cardFlash; property: "opacity"; to: 0; duration: 850 }

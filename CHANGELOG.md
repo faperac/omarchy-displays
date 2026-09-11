@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed: Identify flashed every card at once, which defeats the point —
+  there was no way to tell which card was which monitor. It now flashes only
+  the card for the monitor the real pointer is currently on.
 - Removed the `--nwg` fallback and `install.sh` from the plugin. The plugin
   never needed them (the panel writes `monitors.lua` directly via the bundled
   CLI's `--from-native`), and dropping them removes all package-manager /

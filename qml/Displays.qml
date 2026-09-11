@@ -128,6 +128,20 @@ ShellRoot {
     property bool dirty: false
     property string pendingNote: ""
 
+    // Flash only the card for the monitor the real pointer is currently on,
+    // not every card — with two cards flashing at once there's nothing to read.
+    property int identifyIdx: -1
+    function identify() { identifyProc.running = true; }
+    function monitorAt(px, py) {
+        for (var i = 0; i < app.monitors.length; i++) {
+            var m = app.monitors[i];
+            if (!m.enabled) continue;
+            var s = app.logicalSize(m);
+            if (px >= m.x && px < m.x + s.w && py >= m.y && py < m.y + s.h) return i;
+        }
+        return -1;
+    }
+
     function trimNum(s) {
         s = String(s);
         if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
@@ -159,6 +173,15 @@ ShellRoot {
     // rewrites the managed block in monitors.lua and runs `hyprctl reload`.
     Process { id: runProc
         onRunningChanged: if (!running) { app.dirty = false; toast.show(app.pendingNote); app.refresh(); } }
+    Process { id: identifyProc; command: ["hyprctl", "-j", "cursorpos"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var idx = -1;
+                try { var p = JSON.parse(text); idx = app.monitorAt(p.x, p.y); } catch (e) {}
+                app.identifyIdx = idx;
+                identifyTimer.restart();
+            }
+        } }
 
     function refresh() { readProc.running = true; }
     Component.onCompleted: app.refresh()
@@ -565,7 +588,7 @@ ShellRoot {
                         }
                     }
                     Item { Layout.fillWidth: true }
-                    Btn { label: "Identify"; onClicked: identifyTimer.start() }
+                    Btn { label: "Identify"; onClicked: app.identify() }
                 }
             }
             Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: app.ualpha(app.pal.text, app.sty.borderA) }
@@ -720,7 +743,9 @@ ShellRoot {
                             Connections {
                                 target: identifyTimer
                                 function onRunningChanged() {
-                                    if (identifyTimer.running) { flash.opacity = 0.5; flashOut.start(); }
+                                    if (identifyTimer.running && card.index === app.identifyIdx) {
+                                        flash.opacity = 0.5; flashOut.start();
+                                    }
                                 }
                             }
                             NumberAnimation { id: flashOut; target: flash; property: "opacity"; to: 0; duration: 850 }
