@@ -75,6 +75,7 @@ function parseMonitors(jsonText) {
             modes: modes
         });
     }
+    _seedPrimary(ms);
     return ms;
 }
 
@@ -133,9 +134,29 @@ function _pullFlush(ms, idx) {
     m.x = Math.round(bx); m.y = Math.round(by);
 }
 
+// Hyprland has no primary-monitor concept of its own, so the model carries the
+// flag: exactly one enabled monitor is `primary`, and resolveAndNormalize keeps
+// that one at (0,0). Returns -1 when no enabled monitor claims it.
+function _primaryIndex(ms) {
+    for (var i = 0; i < ms.length; i++) if (ms[i].primary && ms[i].enabled) return i;
+    return -1;
+}
+
+// Adopt the primary from a layout that carries no flag yet: whoever holds the
+// origin, else the first enabled output.
+function _seedPrimary(ms) {
+    var pick = -1;
+    for (var i = 0; i < ms.length; i++) {
+        if (!ms[i].enabled) continue;
+        if (ms[i].x === 0 && ms[i].y === 0) { pick = i; break; }
+        if (pick < 0) pick = i;
+    }
+    for (var j = 0; j < ms.length; j++) ms[j].primary = (j === pick);
+}
+
 // Push ms[idx] off everything it overlaps, guarantee it still touches the rest
-// (no gap the cursor can't cross), then shift the whole set to (0,0).
-// Mutates ms in place.
+// (no gap the cursor can't cross), then shift the whole set so the primary
+// monitor sits at (0,0). Mutates ms in place.
 function resolveAndNormalize(ms, idx) {
     var enabled = 0;
     for (var e = 0; e < ms.length; e++) if (ms[e].enabled) enabled++;
@@ -166,12 +187,20 @@ function resolveAndNormalize(ms, idx) {
         _pullFlush(ms, idx);
     }
 
-    var minx = 1e9, miny = 1e9;
-    for (var a = 0; a < ms.length; a++) if (ms[a].enabled) {
-        minx = Math.min(minx, ms[a].x); miny = Math.min(miny, ms[a].y);
+    // The primary owns the origin; everything else is placed relative to it,
+    // negative coordinates included (Hyprland takes those). Anchoring on the
+    // layout's top-left instead is what used to make setPrimary a no-op.
+    var ax, ay, p = _primaryIndex(ms);
+    if (p >= 0) {
+        ax = ms[p].x; ay = ms[p].y;
+    } else {
+        ax = 1e9; ay = 1e9;
+        for (var a = 0; a < ms.length; a++) if (ms[a].enabled) {
+            ax = Math.min(ax, ms[a].x); ay = Math.min(ay, ms[a].y);
+        }
+        if (ax === 1e9) { ax = 0; ay = 0; }
     }
-    if (minx === 1e9) { minx = 0; miny = 0; }
-    for (var b = 0; b < ms.length; b++) { ms[b].x -= minx; ms[b].y -= miny; }
+    for (var b = 0; b < ms.length; b++) { ms[b].x -= ax; ms[b].y -= ay; }
 }
 
 // Drop `ms[idx]` at logical (nx,ny): snap its edges to neighbours, then
@@ -202,8 +231,8 @@ function updateMon(ms, idx, patch) {
 
 function setPrimary(ms, idx) {
     ms = clone(ms);
-    var px = ms[idx].x, py = ms[idx].y;
-    for (var i = 0; i < ms.length; i++) { ms[i].x -= px; ms[i].y -= py; }
+    if (!ms[idx] || !ms[idx].enabled) return ms;
+    for (var i = 0; i < ms.length; i++) ms[i].primary = (i === idx);
     resolveAndNormalize(ms, idx);
     return ms;
 }
@@ -217,6 +246,9 @@ function enableMon(ms, idx, on) {
             maxr = Math.max(maxr, ms[i].x + logicalSize(ms[i]).w);
         ms[idx].x = maxr; ms[idx].y = 0;
     }
+    // The primary has to be an output that's on: disabling it hands the origin
+    // to whatever is left, and the first output back on takes it.
+    if (_primaryIndex(ms) < 0) _seedPrimary(ms);
     resolveAndNormalize(ms, idx);
     return ms;
 }
@@ -230,7 +262,7 @@ function setResolution(ms, idx, w, h) {
     return updateMon(ms, idx, { res: { w: w, h: h }, rr: best });
 }
 
-function isPrimary(m) { return m && m.x === 0 && m.y === 0; }
+function isPrimary(m) { return !!(m && m.primary && m.enabled); }
 
 function uniqRes(m) {
     if (!m) return [];
