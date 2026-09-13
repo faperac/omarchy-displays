@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - Fixed: Identify flashed every card at once, which defeats the point —
   there was no way to tell which card was which monitor. It now flashes only
